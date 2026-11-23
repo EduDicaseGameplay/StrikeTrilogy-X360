@@ -1,0 +1,28 @@
+Third-party code and tools
+
+Based on StrikeHDCollection
+  https://github.com/Icedomega13/StrikeHDCollection (commit 9c0be81, v1.0.0)
+  Copyright (c) 2026 Icedomega13 and contributors, MIT License (see LICENSE).
+  Used from the base at build time (not in this repository): the translator
+  (tools/trace.py, tools/recomp.py), the CPU runtime, the Genesis bus and VDP
+  renderer, the game modules (games/) and the third_party folder.
+  Derived from it, in this repository:
+    Xbox360/Audio/strike_sound_x360.c, ym2612_x360.cpp   (src/hw/sound.c, ym2612_ymfm.cpp)
+    Xbox360/Graphics/strike_vdp_fast.c                     (src/hw/vdp_render.c)
+    Source/Shared/strike_registry.c                        (games/registry.c)
+    Source/Shared/strike_features.c                        (parts of src/host/main.c)
+    Tools/lockstep_suite_win.sh                            (tools/lockstep_suite.sh)
+
+Used from the base at build time (not in this repository):
+  Musashi 68000 emulator, Karl Stenerud (lockstep reference only)
+  z80, Copyright (c) 2019 Nicolas Allemand (superzazu), MIT License
+  ymfm, Copyright (c) 2021 Aaron Giles, BSD 3-Clause License
+  stb_image_write, Sean Barrett, public domain / MIT (PC check tool only)
+  capstone (Python, the base's tracer), BSD License
+
+OXDK, MrMilenko, public domain
+  https://github.com/MrMilenko/OXDK
+  The compiler, linker and XEX tools. Tools/patches/llvm-lld-thunk-r0.patch
+  changes LLVM's lld (Apache License 2.0 with LLVM Exceptions).
+
+Xbox 360 SDK (XDK), Microsoft: needed to build, not included.

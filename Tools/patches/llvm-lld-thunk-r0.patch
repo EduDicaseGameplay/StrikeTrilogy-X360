@@ -1,0 +1,20 @@
+diff --git a/lld/ELF/Thunks.cpp b/lld/ELF/Thunks.cpp
+index 65d0f094c..ca7b74356 100644
+--- a/lld/ELF/Thunks.cpp
++++ b/lld/ELF/Thunks.cpp
+@@ -1394,9 +1394,12 @@ void PPC32LongThunk::writeTo(uint8_t *buf) {
+     write32(ctx, buf + 20, 0x7c0803a6);           // mtlr r0
+     buf += 24;
+   } else {
+-    write32(ctx, buf + 0, 0x3d800000 | ha(d)); // lis r12,d@ha
+-    write32(ctx, buf + 4, 0x398c0000 | lo(d)); // addi r12,r12,d@l
+-    buf += 8;
++    // Xbox 360 port patch: r0, not r12 (Microsoft's `mflr r12 ; bl __savegprlr_N` keeps the return address in r12).
++    write32(ctx, buf + 0, 0x3c000000 | (d >> 16));    // lis r0,d@h
++    write32(ctx, buf + 4, 0x60000000 | (d & 0xffff)); // ori r0,r0,d@l
++    write32(ctx, buf + 8, 0x7c0903a6);                // mtctr r0
++    write32(ctx, buf + 12, 0x4e800420);               // bctr
++    return;
+   }
+   write32(ctx, buf + 0, 0x7d8903a6); // mtctr r12
+   write32(ctx, buf + 4, 0x4e800420); // bctr

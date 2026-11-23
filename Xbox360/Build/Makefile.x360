@@ -1,0 +1,91 @@
+# Strike Trilogy X360: one XEX per game, built in WSL with the OXDK clang Xenon toolchain and the
+# XDK libraries (same toolchain setup as SoR2-X360 / MDX360-Runtime, console-tested).
+#   bash Xbox360/Build/build.sh [desert|jungle|urban|all]
+# make cannot take paths with spaces, so ROOT is a link in $HOME (build.sh makes it).
+GAME ?= desert
+ifeq ($(GAME),desert)
+GDIR := DesertStrike
+TID  := 0x53545201
+endif
+ifeq ($(GAME),jungle)
+GDIR := JungleStrike
+TID  := 0x53545202
+endif
+ifeq ($(GAME),urban)
+GDIR := UrbanStrike
+TID  := 0x53545203
+endif
+
+OXDK_DIR    := $(HOME)/OXDK
+OXDK_TARGET := xbox360
+OXDK_LLVM   ?= $(HOME)/oxdk-llvm/build
+XDK_DIR     ?= $(HOME)/xdk360/XDK
+OXDK_LIBCXX_DIR ?= $(HOME)/oxdk-llvm/libcxx/include
+XENON_ABI   := 1
+OXDK360_LIBCXX := 1
+XEX_TITLE   := $(GDIR)
+XEX_TITLE_ID := $(TID)
+XDK_LIBS    := xapilib,d3d9,d3dx9,xgraphics,xaudio2,x3daudio,xinput2,xmcore,libcMT
+XEX_STACK   := 0x400000
+
+ROOT ?= $(abspath ../..)
+REF  := $(ROOT)/Reference/StrikeHDCollection
+X    := $(ROOT)/Xbox360
+GEN  := $(REF)/generated/$(GAME)
+OUTPUT_DIR := $(X)/Build/out
+
+# Reference code used unchanged: CPU runtime, bus/VDP, game modules, Z80, ymfm, SHA-1.
+REF_COMMON := $(REF)/src/runtime/cpu.c $(REF)/src/hw/genesis.c $(REF)/src/util/sha1.c \
+              $(REF)/games/strike_world.c $(REF)/games/strike_minimap.c \
+              $(REF)/third_party/z80/z80.c \
+              $(addprefix $(REF)/third_party/ymfm/src/,ymfm_opn.cpp ymfm_adpcm.cpp ymfm_ssg.cpp)
+# Port code shared by the three games.
+X_COMMON   := $(X)/Runtime/mdx_x360_sys.c $(X)/Runtime/compat/x360_format.cpp $(X)/Runtime/compat/x360_printf.cpp \
+              $(X)/Graphics/mdx_x360_video.cpp $(X)/Graphics/strike_render.c $(X)/Graphics/vdp_render_snap.c \
+              $(X)/Graphics/strike_osd.c $(X)/Graphics/strike_vdp_fast.c \
+              $(X)/Audio/mdx_x360_audio.c $(X)/Audio/strike_sound_x360.c $(X)/Audio/ym2612_x360.cpp \
+              $(X)/Input/strike_input.c $(X)/Storage/strike_storage.c $(ROOT)/Source/Shared/strike_features.c
+# This game: its module, its recompiled code, the single-game registry and the entry point.
+GAME_SRCS  := $(REF)/games/$(GAME)/$(GAME).c $(wildcard $(GEN)/recomp_*.c) \
+              $(ROOT)/Source/Shared/strike_registry.c $(X)/Runtime/strike_main.c
+
+include $(OXDK_DIR)/oxdk.mk
+OXDK360_CXXFLAGS += -nostdlibinc
+OBJCOPY := $(OXDK_LLVM)/bin/llvm-objcopy
+export OXDK360_LLVM := $(OXDK_LLVM)
+
+INC := -I$(REF)/src -I$(REF)/src/hw -I$(REF)/src/runtime -I$(REF)/games -I$(REF)/third_party/z80 \
+       -I$(REF)/third_party/ymfm/src -I$(X)/Runtime -I$(X)/Graphics -I$(X)/Audio -I$(X)/Input -I$(X)/Storage \
+       -I$(ROOT)/Source/Shared -I$(ROOT)/Source/$(GDIR) -DX360 -include $(X)/Runtime/compat/x360_compat.h
+# -fbuiltin: oxdk.mk's -ffreestanding turns the builtins off (PORTING_PLAYBOOK 18).
+OPT      := -O2 -fbuiltin -mtune=a2
+CFLAGS   := -std=gnu11 $(OPT) -w $(INC)
+CXXFLAGS := -std=c++17 $(OPT) -w $(INC)
+
+COMMON_OBJS := $(patsubst $(ROOT)/%,$(OUTPUT_DIR)/obj/common/%.o,$(REF_COMMON) $(X_COMMON))
+GAME_OBJS   := $(patsubst $(ROOT)/%,$(OUTPUT_DIR)/obj/$(GAME)/%.o,$(GAME_SRCS))
+MYXEX       := $(OUTPUT_DIR)/xex/$(GDIR).xex
+.DEFAULT_GOAL := xex
+xex: $(MYXEX)
+objs: $(COMMON_OBJS) $(GAME_OBJS)
+
+$(OUTPUT_DIR)/obj/common/%.c.o: $(ROOT)/%.c
+	@mkdir -p $(dir $@)
+	@$(CLANG) $(OXDK360_CFLAGS) $(CFLAGS) $< -o $@
+	@$(OBJCOPY) --remove-section=.deplibs $@ 2>/dev/null || true
+$(OUTPUT_DIR)/obj/common/%.cpp.o: $(ROOT)/%.cpp
+	@mkdir -p $(dir $@)
+	@$(CLANGXX) $(OXDK360_CXXFLAGS) $(CXXFLAGS) $< -o $@
+	@$(OBJCOPY) --remove-section=.deplibs $@ 2>/dev/null || true
+$(OUTPUT_DIR)/obj/$(GAME)/%.c.o: $(ROOT)/%.c $(ROOT)/Source/$(GDIR)/game_config.h
+	@mkdir -p $(dir $@)
+	@$(CLANG) $(OXDK360_CFLAGS) $(CFLAGS) $< -o $@
+	@$(OBJCOPY) --remove-section=.deplibs $@ 2>/dev/null || true
+
+$(MYXEX): $(COMMON_OBJS) $(GAME_OBJS) $(OXDK360_BUILTINS_O) $(OXDK360_LIBCXX_O)
+	@mkdir -p $(dir $@)
+	PATH="$(OXDK_LLVM)/bin:$$PATH" python3 $(OXDK360_DIR)/tools/oxdklink/oxdklink.py $^ \
+	    -T $(LINKER_SCRIPT) -o $@ \
+	    --xdk "$(XDK_DIR)" --libs $(XDK_LIBS) \
+	    --base $(XEX_BASE) --stack $(XEX_STACK) --name $(XEX_TITLE).exe \
+	    --title-id $(XEX_TITLE_ID)

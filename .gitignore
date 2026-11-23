@@ -1,0 +1,24 @@
+# Never publish the games or anything made from them.
+# ROMs and archives with ROMs
+ROMs/
+*.bin
+*.md.rom
+*.smd
+*.SMD
+*.gen
+*.zip
+*.7z
+# The base, cloned here: its generated/ folder is translated from the ROMs (game code).
+# Whoever downloads this clones the base and generates everything from their own ROMs.
+/Reference/
+# Builds and console folders (Deploy holds the ROM)
+/Builds/
+/Xbox360/Build/out/
+/Tools/pc_check/build/
+*.xex
+# Files the game writes, videos, logs
+*.sav
+*.cfg
+*.mmc
+*.mp4
+*_log.txt
